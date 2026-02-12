@@ -51,6 +51,13 @@ int run_all_app()
 		/*
 		* LAB1: you may need to initialize your new fields of proc here
 		*/
+		p->start_time = get_cycle(); // Record the time the app was loaded
+        // Ensure syscall counts start at zero
+        for(int j = 0; j < MAX_SYSCALL_NUM; j++) {
+            p->syscall_counts[j] = 0;
+        }
+
+        p->state = RUNNABLE;
 	}
 	return 0;
 }
