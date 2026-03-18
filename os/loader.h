@@ -3,6 +3,7 @@
 
 #include "const.h"
 #include "types.h"
+#include "timer.h"
 
 int finished();
 void loader_init();

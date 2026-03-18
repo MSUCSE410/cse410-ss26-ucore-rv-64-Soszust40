@@ -3,6 +3,7 @@
 #include "loader.h"
 #include "trap.h"
 #include "vm.h"
+#include "timer.h"
 
 struct proc pool[NPROC];
 __attribute__((aligned(16))) char kstack[NPROC][PAGE_SIZE];
@@ -33,6 +34,8 @@ void proc_init(void)
 		/*
 		* LAB1: you may need to initialize your new fields of proc here
 		*/
+		p->start_time = 0;
+        p->pid = 0;
 	}
 	idle.kstack = (uint64)boot_stack_top;
 	idle.pid = 0;
@@ -59,17 +62,20 @@ struct proc *allocproc(void)
 	return 0;
 
 found:
-	p->pid = allocpid();
-	p->state = USED;
-	p->pagetable = 0;
-	p->ustack = 0;
-	p->max_page = 0;
-	memset(&p->context, 0, sizeof(p->context));
-	memset((void *)p->kstack, 0, KSTACK_SIZE);
-	memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
-	p->context.ra = (uint64)usertrapret;
-	p->context.sp = p->kstack + KSTACK_SIZE;
-	return p;
+    p->pid = allocpid();
+	p->start_time = 0;
+    p->state = USED;
+    p->pagetable = 0;
+    p->ustack = 0;
+    p->max_page = 0;
+	
+    memset(p->syscall_counts, 0, sizeof(p->syscall_counts));
+    memset(&p->context, 0, sizeof(p->context));
+    memset((void *)p->kstack, 0, KSTACK_SIZE);
+    memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
+    p->context.ra = (uint64)usertrapret;
+    p->context.sp = p->kstack + KSTACK_SIZE;
+    return p;
 }
 
 // Scheduler never returns.  It loops, doing:
@@ -82,15 +88,18 @@ void scheduler(void)
 	struct proc *p;
 	for (;;) {
 		for (p = pool; p < &pool[NPROC]; p++) {
-			if (p->state == RUNNABLE) {
-				/*
+            if (p->state == RUNNABLE) {
+                /*
 				* LAB1: you may need to init proc start time here
 				*/
-				p->state = RUNNING;
-				current_proc = p;
-				swtch(&idle.context, &p->context);
-			}
-		}
+                p->start_time = get_cycle();
+
+                p->state = RUNNING;
+                current_proc = p;
+                swtch(&idle.context, &p->context);
+                current_proc = &idle;
+            }
+        }
 	}
 }
 

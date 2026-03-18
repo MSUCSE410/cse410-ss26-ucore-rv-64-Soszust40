@@ -4,6 +4,8 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
+#include "timer.h"
+#include "vm.h"
 
 uint64 sys_write(int fd, uint64 va, uint len)
 {
@@ -32,18 +34,17 @@ uint64 sys_sched_yield()
 	return 0;
 }
 
-uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofday in pagetable. (VA to PA)
-{
-	// YOUR CODE
-	val->sec = 0;
-	val->usec = 0;
+uint64 sys_gettimeofday(uint64 va_val, int _tz) {
+    struct proc *p = curr_proc();
 
-	/* The code in `ch3` will leads to memory bugs*/
+    // Translate virtual address to physical address 
+    TimeVal *pa_val = (TimeVal *)useraddr(p->pagetable, va_val);
+    if (pa_val == NULL) return -1;
 
-	// uint64 cycle = get_cycle();
-	// val->sec = cycle / CPU_FREQ;
-	// val->usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
-	return 0;
+    uint64 cycle = get_cycle();
+    pa_val->sec = cycle / CPU_FREQ;
+    pa_val->usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
+    return 0;
 }
 
 // TODO: add support for mmap and munmap syscall.
@@ -52,8 +53,80 @@ uint64 sys_gettimeofday(TimeVal *val, int _tz) // TODO: implement sys_gettimeofd
 /*
 * LAB1: you may need to define sys_task_info here
 */
+uint64 sys_task_info(uint64 va_ti) {
+    struct proc *p = curr_proc();
+    
+    TaskInfo *pa_ti = (TaskInfo *)useraddr(p->pagetable, va_ti);
+    if (pa_ti == NULL) return -1;
+
+    pa_ti->status = p->state;
+    
+    for (int i = 0; i < MAX_SYSCALL_NUM; i++) {
+        pa_ti->syscall_times[i] = p->syscall_counts[i]; 
+    }
+    
+    pa_ti->time = (get_cycle() - p->start_time) / (CPU_FREQ / 1000); 
+    return 0;
+}
 
 extern char trap_page[];
+
+uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd) {
+    if (len == 0) return 0; 
+    
+    if (len > (1024 * 1024 * 1024)) return -1;
+    if ((port & ~0x7) != 0 || (port & 0x7) == 0) return -1;
+
+    if (start % PGSIZE != 0) return -1;
+
+    struct proc *p = curr_proc();
+    uint64 va = PGROUNDDOWN(start);
+    uint64 end = PGROUNDUP(start + len);
+    
+    for (uint64 a = va; a < end; a += PGSIZE) {
+        if (walkaddr(p->pagetable, a) != 0) {
+            return -1; 
+        }
+    }
+
+    int perm = PTE_U | PTE_V | (port << 1); 
+
+    for (uint64 a = va; a < end; a += PGSIZE) {
+        char *mem = kalloc(); 
+        if (mem == 0) {
+            sys_munmap(va, a - va); 
+            return -1;
+        }
+        memset(mem, 0, PGSIZE);
+        if (mappages(p->pagetable, a, PGSIZE, (uint64)mem, perm) != 0) {
+            kfree(mem);
+            sys_munmap(va, a - va);
+            return -1;
+        }
+    }
+
+    return 0; 
+}
+
+uint64 sys_munmap(uint64 start, uint64 len) {
+    if (len == 0) return 0;
+
+    // Reject unaligned start addresses
+    if (start % PGSIZE != 0) return -1;
+    
+    struct proc *p = curr_proc();
+    uint64 va = PGROUNDDOWN(start);
+    uint64 end = PGROUNDUP(start + len);
+
+    for (uint64 a = va; a < end; a += PGSIZE) {
+        if (walkaddr(p->pagetable, a) == 0) {
+            return -1; 
+        }
+    }
+
+    uvmunmap(p->pagetable, va, (end - va) / PGSIZE, 1);
+    return 0; 
+}
 
 void syscall()
 {
@@ -66,6 +139,11 @@ void syscall()
 	/*
 	* LAB1: you may need to update syscall counter for task info here
 	*/
+	struct proc *p = curr_proc();
+	if (id >= 0 && id < MAX_SYSCALL_NUM) {
+		p->syscall_counts[id]++;
+	}
+	
 	switch (id) {
 	case SYS_write:
 		ret = sys_write(args[0], args[1], args[2]);
@@ -77,11 +155,23 @@ void syscall()
 		ret = sys_sched_yield();
 		break;
 	case SYS_gettimeofday:
-		ret = sys_gettimeofday((TimeVal *)args[0], args[1]);
-		break;
+        // Pass the raw virtual address directly
+        ret = sys_gettimeofday(args[0], (int)args[1]);
+        break;
 	/*
 	* LAB1: you may need to add SYS_taskinfo case here
 	*/
+	case SYS_task_info: 
+        // Pass the raw virtual address directly
+        ret = sys_task_info(args[0]);
+        break;
+	case SYS_mmap:
+		ret = sys_mmap(args[0], args[1], (int)args[2], (int)args[3], (int)args[4]);
+		break;
+	case SYS_munmap:
+		ret = sys_munmap(args[0], args[1]);
+		break;
+	case 172: // Add this to handle the unknown syscall 172
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
