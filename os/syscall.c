@@ -47,8 +47,8 @@ uint64 sys_gettimeofday(uint64 va_val, int _tz) {
     return 0;
 }
 
-// TODO: add support for mmap and munmap syscall.
-// hint: read through docstrings in vm.c. Watching CH4 video may also help.
+// TODO: add support for mmap and munmap syscall
+// hint: read through docstrings in vm.c. Watching CH4 video may also help
 // Note the return value and PTE flags (especially U,X,W,R)
 /*
 * LAB1: you may need to define sys_task_info here
