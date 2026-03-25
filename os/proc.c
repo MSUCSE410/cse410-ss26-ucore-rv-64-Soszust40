@@ -92,7 +92,9 @@ void scheduler(void)
                 /*
 				* LAB1: you may need to init proc start time here
 				*/
-                p->start_time = get_cycle();
+                if (p->start_time == 0) {
+                    p->start_time = get_cycle();
+                }
 
                 p->state = RUNNING;
                 current_proc = p;

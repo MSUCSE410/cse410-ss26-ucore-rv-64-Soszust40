@@ -52,7 +52,7 @@ struct proc {
 typedef struct {
     int status;
     uint32 syscall_times[MAX_SYSCALL_NUM];
-    uint64 time;                             
+    uint32 time;                             
 } TaskInfo;
 
 struct proc *curr_proc();

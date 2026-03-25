@@ -59,7 +59,16 @@ uint64 sys_task_info(uint64 va_ti) {
     TaskInfo *pa_ti = (TaskInfo *)useraddr(p->pagetable, va_ti);
     if (pa_ti == NULL) return -1;
 
-    pa_ti->status = p->state;
+    // Map internal kernel state to TaskStatus
+    if (p->state == RUNNING) {
+        pa_ti->status = 2;
+    } else if (p->state == RUNNABLE) {
+        pa_ti->status = 1;
+    } else if (p->state == ZOMBIE) {
+        pa_ti->status = 3;
+    } else {
+        pa_ti->status = 0;
+    }
     
     for (int i = 0; i < MAX_SYSCALL_NUM; i++) {
         pa_ti->syscall_times[i] = p->syscall_counts[i]; 
@@ -172,6 +181,8 @@ void syscall()
 		ret = sys_munmap(args[0], args[1]);
 		break;
 	case 172: // Add this to handle the unknown syscall 172
+        ret = curr_proc()->pid;
+		break;
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
