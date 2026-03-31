@@ -6,7 +6,9 @@
 #include "queue.h"
 
 #define NPROC (512)
+#define MAX_SYSCALL_NUM 500
 #define FD_BUFFER_SIZE (16)
+#define BIG_STRIDE 0x7FFFFFFF
 
 struct file;
 
@@ -45,7 +47,26 @@ struct proc {
 	struct proc *parent; // Parent process
 	uint64 exit_code;
 	struct file *files[FD_BUFFER_SIZE];
+	/*
+	* LAB1: you may need to add some new fields here
+	*/
+	uint64 start_time; 
+	uint32 syscall_counts[MAX_SYSCALL_NUM];
+
+	// Stride scheduling fields
+    uint64 stride;
+    uint64 priority;
+    uint64 pass;
 };
+
+/*
+* LAB1: you may need to define struct for TaskInfo here
+*/
+typedef struct {
+    int status;
+    uint32 syscall_times[MAX_SYSCALL_NUM];
+    uint32 time;                             
+} TaskInfo;
 
 int cpuid();
 struct proc *curr_proc();
@@ -61,6 +82,7 @@ void add_task(struct proc *);
 struct proc *pop_task();
 struct proc *allocproc();
 int fdalloc(struct file *);
+void freeproc(struct proc *);
 // swtch.S
 void swtch(struct context *, struct context *);
 

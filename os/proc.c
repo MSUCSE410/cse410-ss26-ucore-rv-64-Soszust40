@@ -4,6 +4,7 @@
 #include "trap.h"
 #include "vm.h"
 #include "queue.h"
+#include "timer.h"
 
 struct proc pool[NPROC];
 __attribute__((aligned(16))) char kstack[NPROC][PAGE_SIZE];
@@ -32,6 +33,11 @@ void proc_init()
 		p->state = UNUSED;
 		p->kstack = (uint64)kstack[p - pool];
 		p->trapframe = (struct trapframe *)trapframe[p - pool];
+		/*
+		* LAB1: you may need to initialize your new fields of proc here
+		*/
+		p->start_time = 0;
+        p->pid = 0;
 	}
 	idle.kstack = (uint64)boot_stack_top;
 	idle.pid = IDLE_PID;
@@ -76,20 +82,31 @@ struct proc *allocproc()
 	return 0;
 
 found:
-	// init proc
-	p->pid = allocpid();
-	p->state = USED;
-	p->ustack = 0;
-	p->max_page = 0;
-	p->parent = NULL;
-	p->exit_code = 0;
-	p->pagetable = uvmcreate((uint64)p->trapframe);
-	memset(&p->context, 0, sizeof(p->context));
-	memset((void *)p->kstack, 0, KSTACK_SIZE);
-	memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
-	p->context.ra = (uint64)usertrapret;
-	p->context.sp = p->kstack + KSTACK_SIZE;
-	return p;
+    p->pid = allocpid();
+    p->start_time = 0;
+    p->state = USED;
+    p->ustack = 0;
+    p->max_page = 0;
+
+    // Stride Scheduling Parameters
+    p->stride = 0;
+    p->priority = 16;
+    p->pass = BIG_STRIDE / p->priority;
+
+    // Allocate and Initialize the Page Table
+    p->pagetable = uvmcreate((uint64)p->trapframe);
+    if (p->pagetable == 0) {
+        p->state = UNUSED;
+        return 0;
+    }
+	
+    memset(p->syscall_counts, 0, sizeof(p->syscall_counts));
+    memset(&p->context, 0, sizeof(p->context));
+    memset((void *)p->kstack, 0, KSTACK_SIZE);
+    memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
+    p->context.ra = (uint64)usertrapret;
+    p->context.sp = p->kstack + KSTACK_SIZE;
+    return p;
 }
 
 // Scheduler never returns.  It loops, doing:
@@ -106,9 +123,6 @@ void scheduler()
 			if (p->state == RUNNABLE) {
 				has_proc = 1;
 				tracef("swtich to proc %d", p - pool);
-				p->state = RUNNING;
-				current_proc = p;
-				swtch(&idle.context, &p->context);
 			}
 		}
 		if(has_proc == 0) {
