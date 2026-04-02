@@ -194,6 +194,7 @@ uint64 sys_munmap(uint64 start, uint64 len) {
 
 uint64 sys_spawn(uint64 va)
 {
+    // Copy the filename from user space
     struct proc *p = curr_proc();
     char name[200];
     
@@ -227,6 +228,8 @@ uint64 sys_set_priority(long long prio){
     struct proc *p = curr_proc();
     p->priority = prio;
     p->pass = BIG_STRIDE / p->priority;
+    // The smaller the pass, the more CPU time the process gets
+    // p->priority is the static priority
     
     return prio;
 }
