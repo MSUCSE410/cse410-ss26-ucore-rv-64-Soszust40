@@ -5,7 +5,9 @@
 #include "types.h"
 
 #define NPROC (512)
+#define MAX_SYSCALL_NUM 500
 #define FD_BUFFER_SIZE (16)
+#define BIG_STRIDE 0x7FFFFFFF
 
 struct file;
 
@@ -45,6 +47,16 @@ struct proc {
 	uint64 exit_code;
 	struct file *files
 		[FD_BUFFER_SIZE]; //File descriptor table, using to record the files opened by the process
+	/*
+	* LAB1: you may need to add some new fields here
+	*/
+	uint64 start_time; 
+	uint32 syscall_counts[MAX_SYSCALL_NUM];
+
+	// Stride scheduling fields
+    uint64 stride;
+    uint64 priority;
+    uint64 pass;
 };
 
 int cpuid();
@@ -61,6 +73,7 @@ void add_task(struct proc *);
 struct proc *pop_task();
 struct proc *allocproc();
 int fdalloc(struct file *);
+void freeproc(struct proc *);
 int init_stdio(struct proc *);
 int push_argv(struct proc *, char **);
 // swtch.S

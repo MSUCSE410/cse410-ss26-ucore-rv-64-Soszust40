@@ -9,4 +9,6 @@ typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long uint64;
 
+#define NULL ((void *)0)
+
 #endif // TYPES_H
