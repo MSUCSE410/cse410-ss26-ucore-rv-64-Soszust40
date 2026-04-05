@@ -347,6 +347,8 @@ uint64 sys_close(int fd)
 }
 
 int sys_linkat(int olddirfd, uint64 oldpath, int newdirfd, uint64 newpath, uint64 flags) {
+    // This system call is responsible for creating a new hard link to an existing file.
+    // Hard link creates a new filename that points to that exact same inode.
     char old_name[200], new_name[200];
     struct proc *p = curr_proc();
 
@@ -436,6 +438,7 @@ struct kstat {
 };
 
 int sys_fstat(int fd, uint64 stat) {
+    // Looks at open file and returns some metadata about it, such as size, type, and link count.
     if (fd < 0 || fd >= FD_BUFFER_SIZE) return -1;
     
     struct proc *p = curr_proc();
