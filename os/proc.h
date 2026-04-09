@@ -68,14 +68,23 @@ struct proc {
 	//       and some arrays for detection algorithm.
 	int deadlock_detect_enabled;
 
-	// For mutexes
-	int mut_available[LOCK_POOL_SIZE];
-	int mut_allocation[NTHREAD][LOCK_POOL_SIZE];
-	int mut_request[NTHREAD][LOCK_POOL_SIZE];
+	// Mutexes allows only one process to be accessed with a lock and unlock
+	// Semaphores allows one process to be accessed with a signal and wait allowing multiple threads to use it
 
-	// For semaphores
+	// Mutexes
+	// Tracks the total unallocated instances of each mutex
+	int mut_available[LOCK_POOL_SIZE];
+    // Matrix tracking which thread (row) currently holds which mutex (column)
+	int mut_allocation[NTHREAD][LOCK_POOL_SIZE];
+    // Matrix tracking which thread (row) is currently waiting to acquire which mutex (column)
+	int mut_request[NTHREAD][LOCK_POOL_SIZE];
+	
+    // Semaphores
+    // Tracks the total unallocated instances of each semaphore
 	int sem_available[LOCK_POOL_SIZE];
+    // Matrix tracking which thread (row) currently holds instances of a semaphore (column)
 	int sem_allocation[NTHREAD][LOCK_POOL_SIZE];
+    // Matrix tracking which thread (row) is currently waiting for a semaphore (column)
 	int sem_request[NTHREAD][LOCK_POOL_SIZE];
 };
 

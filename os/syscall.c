@@ -255,27 +255,33 @@ int deadlock_detect(const int available[LOCK_POOL_SIZE],
 {
 	int work[LOCK_POOL_SIZE];
 	int finish[NTHREAD];
-
+    
+    // Initialize the work array with the currently available resources
 	for (int i = 0; i < LOCK_POOL_SIZE; i++) {
 		work[i] = available[i];
 	}
-
+    
+    // Initialize the finish array for all threads
 	for (int i = 0; i < NTHREAD; i++) {
-		finish[i] = 1; // Default to finished
+		finish[i] = 1;
 		for (int j = 0; j < LOCK_POOL_SIZE; j++) {
+            // If the thread holds any resources then must be checked for completion
 			if (allocation[i][j] > 0 || request[i][j] > 0) {
-				finish[i] = 0; // Check threads holding or requesting resources
+				finish[i] = 0; 
 				break;
 			}
 		}
 	}
-
+    
+    // Continuously try to find threads that can finish execution
 	int progress;
 	do {
 		progress = 0;
 		for (int i = 0; i < NTHREAD; i++) {
 			if (!finish[i]) {
 				int can_finish = 1;
+                // Check if all of the thread's current requests can be satisfied 
+                // by the available 'work' pool
 				for (int j = 0; j < LOCK_POOL_SIZE; j++) {
 					if (request[i][j] > work[j]) {
 						can_finish = 0;
@@ -284,19 +290,20 @@ int deadlock_detect(const int available[LOCK_POOL_SIZE],
 				}
 				if (can_finish) {
 					for (int j = 0; j < LOCK_POOL_SIZE; j++) {
-						work[j] += allocation[i][j];
+						work[j] += allocation[i][j]; // Reclaim its allocated resources
 					}
-					finish[i] = 1;
-					progress = 1;
+					finish[i] = 1;   // Mark thread as safely finished
+					progress = 1;    // Note that we made progress in this loop iteration
 				}
 			}
 		}
 	} while (progress);
-
+    
+    // If any thread is still not finished, a deadlock state exists
 	for (int i = 0; i < NTHREAD; i++) {
 		if (!finish[i]) return 1; // Deadlock detected
 	}
-	return 0; // No deadlock
+	return 0; // No deadlock, system is safe
 }
 
 int sys_mutex_create(int blocking)
@@ -307,6 +314,7 @@ int sys_mutex_create(int blocking)
 		return -1;
 	}
 	// LAB5: (4-1) You may want to maintain some variables for detect here
+	// For mutexes: track the availability of each mutex and which thread holds it
 	int mutex_id = m - curr_proc()->mutex_pool;
 	curr_proc()->mut_available[mutex_id] = 1;
 	
@@ -324,6 +332,7 @@ int sys_mutex_lock(int mutex_id)
 	struct proc *p = curr_proc();
 	int tid = curr_thread()->tid;
 
+	// Check will a deadlock occur
 	if (p->deadlock_detect_enabled) {
 		p->mut_request[tid][mutex_id]++;
 		if (deadlock_detect(p->mut_available, p->mut_allocation, p->mut_request)) {
@@ -335,6 +344,7 @@ int sys_mutex_lock(int mutex_id)
 
 	mutex_lock(&curr_proc()->mutex_pool[mutex_id]);
 
+	// Once locked update the resource matrices
 	if (p->deadlock_detect_enabled) {
 		p->mut_request[tid][mutex_id]--;
 		p->mut_allocation[tid][mutex_id]++;
@@ -354,6 +364,8 @@ int sys_mutex_unlock(int mutex_id)
 	struct proc *p = curr_proc();
 	int tid = curr_thread()->tid;
 
+	// Ensure this request won't trigger a deadlock
+	// Ensures two threads don't endlessly wait for each other to release semaphores
 	if (p->deadlock_detect_enabled) {
 		p->mut_allocation[tid][mutex_id]--;
 		p->mut_available[mutex_id]++;
@@ -389,6 +401,7 @@ int sys_semaphore_up(int semaphore_id)
 	struct proc *p = curr_proc();
 	int tid = curr_thread()->tid;
 
+	// A semaphore releases an instance and untrack the allocation
 	if (p->deadlock_detect_enabled) {
 		p->sem_allocation[tid][semaphore_id]--;
 		p->sem_available[semaphore_id]++;
@@ -409,6 +422,8 @@ int sys_semaphore_down(int semaphore_id)
 	struct proc *p = curr_proc();
 	int tid = curr_thread()->tid;
 
+	// Ensure this request won't trigger a deadlock
+	// Ensures two threads don't endlessly wait for each other to release semaphores
 	if (p->deadlock_detect_enabled) {
 		p->sem_request[tid][semaphore_id]++;
 		if (deadlock_detect(p->sem_available, p->sem_allocation, p->sem_request)) {

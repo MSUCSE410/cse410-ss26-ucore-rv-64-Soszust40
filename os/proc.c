@@ -149,6 +149,7 @@ found:
 		p->mut_available[i] = 0;
 		p->sem_available[i] = 0;
 		for (int j = 0; j < NTHREAD; j++) {
+			// Set defaults
 			p->mut_allocation[j][i] = 0;
 			p->mut_request[j][i] = 0;
 			p->sem_allocation[j][i] = 0;
